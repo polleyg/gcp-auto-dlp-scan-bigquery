@@ -14,5 +14,5 @@ steps:
   - 'query'
   - '--destination_table'
   - 'new_tables.from_query_results'
-  - 'replace'
+  - '--replace'
   - 'SELECT 2'
