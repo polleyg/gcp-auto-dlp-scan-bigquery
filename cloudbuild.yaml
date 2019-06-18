@@ -1,0 +1,18 @@
+steps:
+
+# Non-materialized query i.e. temp table & hidden dataset
+- name: 'gcr.io/cloud-builders/gcloud'
+  entrypoint: 'bq'
+  args:
+  - query
+  - 'SELECT 1'
+
+# Materialized query
+- name: 'gcr.io/cloud-builders/gcloud'
+  entrypoint: 'bq'
+  args:
+  - query
+  - destination_table
+  - new_tables.from_query_results
+  - replace
+  - 'SELECT 2'
