@@ -79,8 +79,11 @@ def extract_table_and_dataset(payload, key):
 
 def dlp_all_the_things(table_info):
     project = table_info.project_id
+    dataset = table_info.dataset_id
+    table = table_info.table_id
+    
     dlp_client = dlp.DlpServiceClient()
-    logger.info("DLP'ing all the things on '{}.{}.{}'".format(project, table_info.table_id, table_info.dataset_id))
+    logger.info("DLP'ing all the things on '{}.{}.{}'".format(project, dataset, table))
     
     inspect_config = {
       'info_types': [],
@@ -91,8 +94,8 @@ def dlp_all_the_things(table_info):
         'big_query_options': {
             'table_reference': {
                 'project_id': project,
-                'dataset_id': table_info.dataset_id,
-                'table_id': table_info.table_id,
+                'dataset_id': dataset,
+                'table_id': table,
             }
         }
     }
@@ -104,8 +107,8 @@ def dlp_all_the_things(table_info):
             'output_config': {
                 'table': {
                     'project_id': project,
-                    'dataset_id': table_info.dataset_id,
-                    'table_id': '{}_dlp_scan_results_{}'.format(table_info.table_id, int(round(time.time() * 1000))),
+                    'dataset_id': dataset,
+                    'table_id': '{}_dlp_scan_results_{}'.format(table, int(round(time.time() * 1000))),
                 }
             }
         }
