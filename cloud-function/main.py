@@ -22,39 +22,39 @@ def biqquery_new_table_event_from_pubsub(event, context):
     # This shouldn't happen as it will be filtered out by Stackdriver but let's check anyway
     caller_email = obj['protoPayload']['authenticationInfo']['principalEmail']
     if caller_email.endswith('@dlp-api.iam.gserviceaccount.com'):
-        raise RuntimeError('This is a DLP table creation event. This should not have come through!')
-
-    service_data = obj['protoPayload']['serviceData']
-    table_info = None
-    
-    # Work out the event
-    if 'tableInsertRequest' in service_data:
-        resource = service_data['tableInsertRequest']['resource']
-        if not resource['view']: # ignore views
-            logger.debug("Table insert event")
-            table_info = extract_table_and_dataset(resource, 'tableName')
-    elif 'jobCompletedEvent' in service_data:
-        job_configuration = service_data['jobCompletedEvent']['job']['jobConfiguration']
-        if 'load' in job_configuration:
-            logger.debug("Load job event")
-            table_info = extract_table_and_dataset(job_configuration['load'], 'destinationTable')
-        elif 'query' in job_configuration: 
-            logger.debug("Query job event")
-            table_info = extract_table_and_dataset(job_configuration['query'], 'destinationTable')
-            if not is_materialized_query(bigquery.Client(), table_info): # ignore unmaterialized queries
-                logger.info("Ignoring query creation event because it was not materialized by user")
-                table_info = None
-        elif 'tableCopy' in job_configuration:
-            logger.debug("Table copy event")
-            table_info = extract_table_and_dataset(job_configuration['tableCopy'], 'destinationTable')
-        else:
-        	logger.error("I've no idea what this event is. Send help, now!")
+        logger.error('This is a DLP table creation event. This should not have come through!')
     else:
-	    logger.error("I've no idea what this event is. Send help, now!")
-    
-    if table_info:
-        logger.info("A table with id: '{}' was created in dataset: '{}'".format(table_info.table_id, table_info.dataset_id))
-        dlp_all_the_things(table_info)
+        service_data = obj['protoPayload']['serviceData']
+        table_info = None
+        
+        # Work out the event
+        if 'tableInsertRequest' in service_data:
+            resource = service_data['tableInsertRequest']['resource']
+            if not resource['view']: # ignore views
+                logger.debug("Table insert event")
+                table_info = extract_table_and_dataset(resource, 'tableName')
+        elif 'jobCompletedEvent' in service_data:
+            job_configuration = service_data['jobCompletedEvent']['job']['jobConfiguration']
+            if 'load' in job_configuration:
+                logger.debug("Load job event")
+                table_info = extract_table_and_dataset(job_configuration['load'], 'destinationTable')
+            elif 'query' in job_configuration: 
+                logger.debug("Query job event")
+                table_info = extract_table_and_dataset(job_configuration['query'], 'destinationTable')
+                if not is_materialized_query(bigquery.Client(), table_info): # ignore unmaterialized queries
+                    logger.info("Ignoring query creation event because it was not materialized by user")
+                    table_info = None
+            elif 'tableCopy' in job_configuration:
+                logger.debug("Table copy event")
+                table_info = extract_table_and_dataset(job_configuration['tableCopy'], 'destinationTable')
+            else:
+                logger.error("I've no idea what this event is. Send help, now!")
+        else:
+            logger.error("I've no idea what this event is. Send help, now!")
+        
+        if table_info:
+            logger.info("A table with id: '{}' was created in dataset: '{}'".format(table_info.table_id, table_info.dataset_id))
+            dlp_all_the_things(table_info)
 
 def is_materialized_query(bq_client, table_info):
     """Works out if the destination table is a hidden dataset/table i.e. a normal query
@@ -73,12 +73,12 @@ def is_materialized_query(bq_client, table_info):
     return False
 
 def extract_table_and_dataset(payload, key):
-    TableInfo = collections.namedtuple('TableInfo', ['table_id', 'dataset_id'])
-    table_info = TableInfo(payload[key]['tableId'], payload[key]['datasetId'])
+    TableInfo = collections.namedtuple('TableInfo', ['project_id', 'dataset_id', 'table_id'])
+    table_info = TableInfo(payload[key]['projectId'], payload[key]['datasetId'], payload[key]['tableId'])
     return table_info
 
 def dlp_all_the_things(table_info):
-    project = 'grey-sort-challenge' #TODO
+    project = table_info.project_id
     dlp_client = dlp.DlpServiceClient()
     logger.info("DLP'ing all the things on '{}.{}.{}'".format(project, table_info.table_id, table_info.dataset_id))
     
