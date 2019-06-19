@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import collections
+import time
 from google.cloud import bigquery
 from google.cloud import dlp
 
@@ -17,11 +18,16 @@ def biqquery_new_table_event_from_pubsub(event, context):
     pubsub_message = base64.b64decode(event['data']).decode('utf-8')
     obj = json.loads(pubsub_message)
     logger.info("Received the following payload: '{}'".format(obj))
+
+    # This shouldn't happen as it will be filtered out by Stackdriver but let's check anyway
+    caller_email = obj['protoPayload']['authenticationInfo']['principalEmail']
+    if caller_email.endswith('@dlp-api.iam.gserviceaccount.com'):
+        raise RuntimeError('This is a DLP table creation event. This should not have come through!')
+
     service_data = obj['protoPayload']['serviceData']
-    
-    # Work out the event (edge cases: views, queries (temp tables), DLP creating the table again (endless loop))
-    # Always have ['protoPayload']['serviceData']
     table_info = None
+    
+    # Work out the event
     if 'tableInsertRequest' in service_data:
         resource = service_data['tableInsertRequest']['resource']
         if not resource['view']: # ignore views
@@ -72,9 +78,6 @@ def extract_table_and_dataset(payload, key):
     return table_info
 
 def dlp_all_the_things(table_info):
-    #TODO
-    if table_info.table_id.startswith('_dlp'):
-        return
     project = 'grey-sort-challenge' #TODO
     dlp_client = dlp.DlpServiceClient()
     logger.info("DLP'ing all the things on '{}.{}.{}'".format(project, table_info.table_id, table_info.dataset_id))
@@ -100,9 +103,9 @@ def dlp_all_the_things(table_info):
         'save_findings': {
             'output_config': {
                 'table': {
-                    'project_id': 'grey-sort-challenge',
-                    'table_id': '_dlp_results_foobarred',
-                    'dataset_id': 'new_tables',
+                    'project_id': project,
+                    'dataset_id': table_info.dataset_id,
+                    'table_id': '{}_dlp_scan_results_{}'.format(table_info.table_id, int(round(time.time() * 1000))),
                 }
             }
         }
